@@ -1,4 +1,4 @@
-.PHONY: all clean distclean doc
+.PHONY: all clean distclean doc libpdpgo
 
 VPATH  +=
 
@@ -25,6 +25,10 @@ bench: libpdp
 	@echo "Building the pdp_bench benchmarking utility"
 	$(MAKE) -C tools pdp_bench
 
+libpdpgo:
+	@echo "Building the libpdpgo"
+	$(MAKE) -C libpdpgo all
+
 doc: doxyfile
 	doxygen doxyfile
 
@@ -32,9 +36,11 @@ clean:
 	[ -d tools ] && $(MAKE) -C tools clean
 	[ -d libpdp ] && $(MAKE) -C libpdp clean
 	[ -d libs3 ] && $(MAKE) -C libs3 clean
+	[ -d libpdpgo ] && $(MAKE) -C libpdpgo clean
 
 distclean: clean
 	[ -d tools ] && $(MAKE) -C tools distclean
 	[ -d libpdp ] && $(MAKE) -C libpdp distclean
 	[ -d libs3 ] && $(MAKE) -C libs3 distclean
+	[ -d libpdpgo ] && $(MAKE) -C libpdpgo distclean
 	rm -rf doc/html

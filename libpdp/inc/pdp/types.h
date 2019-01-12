@@ -62,6 +62,7 @@ typedef struct {
     } __pdp_ctx_param_u;
 
     struct pdp_ctx_ops *ops;
+    void* optional_data;
 } pdp_ctx_t;
 
 

@@ -434,8 +434,8 @@ int cpor_fkey_open(const pdp_ctx_t *ctx, const pdp_cpor_key_t *key,
 
 #ifdef _PDP_DEBUG
     DEBUG(1, "\n Read Key File - ");
-    DEBUG(1, "\n  CTXT Length [%d]",  ctxt_len);
-    DEBUG(1, "\n  MAC Length [%d]",  mac_len);
+    DEBUG(1, "\n  CTXT Length [%lu]",  ctxt_len);
+    DEBUG(1, "\n  MAC Length [%lu]",  mac_len);
     DEBUG(1, "\n  Num Sectors Length [%d]",  p->num_sectors);
     for(i=0; i < p->num_sectors; i++) {
         DEBUG(1, "\n Sector %02d", i);
@@ -580,8 +580,8 @@ int cpor_fkey_store(const pdp_ctx_t *ctx, const pdp_cpor_key_t *key,
 
 #ifdef _PDP_DEBUG
     DEBUG(1, "\n Wrote Key File - ");
-    DEBUG(1, "\n  CTXT Length [%d]",  k_ctxt_len);
-    DEBUG(1, "\n  MAC Length [%d]",  k_mac_len);
+    DEBUG(1, "\n  CTXT Length [%lu]",  k_ctxt_len);
+    DEBUG(1, "\n  MAC Length [%lu]",  k_mac_len);
     DEBUG(1, "\n  Num Sectors Length [%d]",  p->num_sectors);
     for(i=0; i < p->num_sectors; i++) {
         DEBUG(1, "\n Sector %02d", i);

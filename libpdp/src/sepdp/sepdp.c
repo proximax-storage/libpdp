@@ -268,7 +268,7 @@ static int sepdp_token_gen(const pdp_ctx_t *ctx, const pdp_sepdp_key_t *key,
     pdp_hexdump("  ki", token->index, ki, ki_size);
 
     DEBUG(1, "\n Writing - ");
-    DEBUG(1, "\n Token %02d", token->index);
+    DEBUG(1, "\n Token %02lu", token->index);
     pdp_hexdump("  iv", token->index, token->iv, token->iv_size);
     pdp_hexdump("  tok", token->index, token->tok, token->tok_size);
     pdp_hexdump("  mac", token->index, token->mac, token->mac_size);

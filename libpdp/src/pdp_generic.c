@@ -140,7 +140,7 @@ int pdp_ctx_init(pdp_ctx_t *ctx)
     ctx->ops->sanitize = sanitize_stub;
     ctx->opts = 0;
     ctx->verbose = 0;
-    ctx->num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+    ctx->num_threads = 1;
     ctx->ifilepath = NULL;
     ctx->ifilepath_len = 0;
     ctx->filepath = NULL;
@@ -224,53 +224,57 @@ int pdp_ctx_create(pdp_ctx_t *ctx, const char* filename, const char* output)
     if (!ctx) {
         PDP_ERR("NULL ctx pointer");
         return -1;
-    } else if (!filename) {
-        PDP_ERR("filename not present");
-        return -1;
-    } else if (strlen(filename) >= MAXPATHLEN) {
-        PDP_ERR("filename too long");
-        return -1;
-    } else if (output && (strlen(output) > MAXPATHLEN - 4)) {
-        PDP_ERR("output filename too long");
-        return -1;
     }
 
-    // ifilename
-    ctx->ifilepath_len = strlen(filename)+1;
-    if ((ctx->ifilepath = malloc(ctx->ifilepath_len)) == NULL) {
-        goto cleanup;
-    }
-    strcpy(ctx->ifilepath, filename);
+    if (~ctx->opts & PDP_OPT_EXT_STRG) {
+        if (!filename) {
+            PDP_ERR("filename not present");
+            return -1;
+        } else if (strlen(filename) >= MAXPATHLEN) {
+            PDP_ERR("filename too long");
+            return -1;
+        } else if (output && (strlen(output) > MAXPATHLEN - 4)) {
+            PDP_ERR("output filename too long");
+            return -1;
+        }
 
-    // filepath (default: work directly on the original file)
-    if (output) {
-         ctx->filepath_len = strlen(output)+1;
-    } else {
-         ctx->filepath_len = strlen(filename)+1;
-    }
-    if ((ctx->filepath = malloc(ctx->filepath_len)) == NULL) {
-        goto cleanup;
-    }
-    if (output) {
-        strcpy(ctx->filepath, output);
-    } else {
-        strcpy(ctx->filepath, filename);
-    }
+        // ifilename
+        ctx->ifilepath_len = strlen(filename) + 1;
+        if ((ctx->ifilepath = malloc(ctx->ifilepath_len)) == NULL) {
+            goto cleanup;
+        }
+        strcpy(ctx->ifilepath, filename);
 
-    // ofilepath (filepath with '.tag' extension)
-    ctx->ofilepath_len = snprintf(tmps, MAXPATHLEN, "%s.tag", ctx->filepath)+1;
-    if (ctx->ofilepath_len > MAXPATHLEN) {
-        goto cleanup;
-    } else if ((ctx->ofilepath = malloc(ctx->ofilepath_len)) == NULL) {
-        goto cleanup;
-    }
-    strcpy(ctx->ofilepath, tmps);
+        // filepath (default: work directly on the original file)
+        if (output) {
+            ctx->filepath_len = strlen(output) + 1;
+        } else {
+            ctx->filepath_len = strlen(filename) + 1;
+        }
+        if ((ctx->filepath = malloc(ctx->filepath_len)) == NULL) {
+            goto cleanup;
+        }
+        if (output) {
+            strcpy(ctx->filepath, output);
+        } else {
+            strcpy(ctx->filepath, filename);
+        }
 
-    // we populate file_st_size whenever we can and believe
-    // the data is pretty accurate. We do this before tagging too,
-    // just in case ifilepath gets pre-processed into filepath
-    if (!access(ctx->filepath, F_OK) && !stat(ctx->filepath, &st)) {
-        ctx->file_st_size = st.st_size;
+        // ofilepath (filepath with '.tag' extension)
+        ctx->ofilepath_len = snprintf(tmps, MAXPATHLEN, "%s.tag", ctx->filepath) + 1;
+        if (ctx->ofilepath_len > MAXPATHLEN) {
+            goto cleanup;
+        } else if ((ctx->ofilepath = malloc(ctx->ofilepath_len)) == NULL) {
+            goto cleanup;
+        }
+        strcpy(ctx->ofilepath, tmps);
+
+        // we populate file_st_size whenever we can and believe
+        // the data is pretty accurate. We do this before tagging too,
+        // just in case ifilepath gets pre-processed into filepath
+        if (!access(ctx->filepath, F_OK) && !stat(ctx->filepath, &st)) {
+            ctx->file_st_size = st.st_size;
+        }
     }
 
     // make as many threads as processors
@@ -448,11 +452,11 @@ int pdp_ctx_free(pdp_ctx_t *ctx)
  * @return 0 on success, non-zero on error
  **/
 int pdp_key_open(pdp_ctx_t *ctx, pdp_key_t *key, pdp_key_t *pk,
-                 const char *path)
+                 const char *path, const unsigned char* pri_key_buffer, const unsigned char* pub_key_buffer)
 {
     int err = 0;
 
-    if (!ctx || !path) return -1;
+    if (!ctx || !(path || pri_key_buffer || pub_key_buffer)) return -1;
     if (key) memset(key, 0, sizeof(pdp_key_t));
     if (pk)  memset(pk, 0, sizeof(pdp_key_t));
 
@@ -464,7 +468,7 @@ int pdp_key_open(pdp_ctx_t *ctx, pdp_key_t *key, pdp_key_t *pk,
             err = -1;
             break;
         case PDP_APDP:
-            err = apdp_key_open(ctx, key, pk, path);
+            err = apdp_key_open(ctx, key, pk, path, pri_key_buffer, pub_key_buffer);
             break;
         case PDP_MRPDP:
             err = mrpdp_key_open(ctx, key, pk, path);
@@ -503,12 +507,13 @@ cleanup:
  * @param[in]     path  path to store key data
  * @return 0 on success, non-zero on error
  **/
-int pdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *key,
-                  const char *path)
+int pdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *key, const char *path,
+      unsigned char** pri_key_buffer, unsigned int* pri_key_buffer_length,
+      unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length)
 {
     int err;
 
-    if (!ctx || !key || !path)
+    if (!ctx || !key || (!path && !(pri_key_buffer && pri_key_buffer_length && pub_key_buffer && pub_key_buffer_length)))
         return -1;
 
     // algo specific key generation logic
@@ -519,7 +524,8 @@ int pdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *key,
             err = -1;
             break;
         case PDP_APDP:
-            err = apdp_key_store(ctx, key, path);
+            err = apdp_key_store(ctx, key, path, pri_key_buffer, pri_key_buffer_length,
+                    pub_key_buffer, pub_key_buffer_length);
             break;
         case PDP_MRPDP:
             err = mrpdp_key_store(ctx, key, path);
@@ -663,17 +669,19 @@ int pdp_tags_gen(pdp_ctx_t *ctx, pdp_key_t *key, pdp_tag_t *tag)
         return -1;
     memset(tag, 0, sizeof(pdp_tag_t));
 
-    // check that file exists
-    if (access(ctx->filepath, F_OK)) {
-        PDP_ERR("cannot open %s", ctx->filepath);
-        return -1;
+    if (~ctx->opts & PDP_OPT_EXT_STRG) {
+        // check that file exists
+        if (access(ctx->filepath, F_OK)) {
+            PDP_ERR("cannot open %s", ctx->filepath);
+            return -1;
+        }
+        // populate ctx with the size of the file we will tag
+        if (stat(ctx->filepath, &st) < 0) {
+            PDP_ERR("cannot stat %s", ctx->filepath);
+            return -1;
+        }
+        ctx->file_st_size = st.st_size;
     }
-    // populate ctx with the size of the file we will tag
-    if (stat(ctx->filepath, &st) < 0) {
-        PDP_ERR("cannot stat %s", ctx->filepath);
-        return -1;
-    }
-    ctx->file_st_size = st.st_size;
 
     // algo specific tag generation logic
     switch(ctx->algo) {

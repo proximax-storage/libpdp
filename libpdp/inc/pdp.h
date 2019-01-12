@@ -50,6 +50,7 @@
 #define PDP_USE_ECC      0x04   ///< Use an ECC tranform before tagging
 #define PDP_OPT_HTTPS    0x08   ///< Force using HTTPS
 #define PDP_PW_NOINPUT   0x10   ///< Read password from environment (not safe)
+#define PDP_OPT_EXT_STRG 0x20   ///< Use external function to access storage backend
 
 /*
  * function prototypes
@@ -58,8 +59,10 @@ int pdp_ctx_init(pdp_ctx_t *ctx);
 int pdp_ctx_create(pdp_ctx_t *ctx, const char* filename, const char *output);
 int pdp_ctx_free(pdp_ctx_t *ctx);
 int pdp_key_open(pdp_ctx_t *ctx, pdp_key_t *key, pdp_key_t *pk,
-        const char *path);
-int pdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *key, const char *path);
+        const char *path, const unsigned char* pri_key_buffer, const unsigned char* pub_key_buffer);
+int pdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *key, const char *path,
+        unsigned char** pri_key_buffer, unsigned int* pri_key_buffer_length,
+        unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length);
 int pdp_key_gen(pdp_ctx_t *ctx, pdp_key_t *key, pdp_key_t *pk);
 int pdp_key_free(const pdp_ctx_t *ctx, pdp_key_t *key);
 int pdp_file_preprocess(pdp_ctx_t *ctx);

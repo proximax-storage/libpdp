@@ -228,6 +228,9 @@ int sample_prp_sans_replacement(const unsigned char *ki, unsigned int ki_size,
     M = samp_sz;
     V = 0;
     keyidx = 0;
+
+    if (N < M)
+        return -1;
     
     // a list of bits indicating set membership
     hist_size = pop_sz / (sizeof(unsigned char)*8);
@@ -523,11 +526,91 @@ unsigned int *gen_prp_pi(const unsigned char *key, unsigned int key_len,
         goto cleanup;
     if (sample_prp_sans_replacement(key, key_len, c, total, indices) != 0)
         goto cleanup;
+
     return indices;
 
 cleanup:
     if (indices) sfree(indices, c);
     return NULL;
+}
+
+
+/**
+ * @brief Determine endianness.
+ *
+ * @return 1 if the running platform is big endian, 0 otherwise.
+ **/
+int is_bigendian() {
+    static int calculated = 0;
+    static int bigendian = 0;
+    if (calculated)
+        return bigendian;
+
+    const int i = 1;
+    bigendian = ((*(char*)&i) == 0);
+    calculated = 1;
+
+    return bigendian;
+}
+
+
+/**
+ * @brief Determine endianness.
+ *
+ * @param[in] value     a 32-bit value
+ * @return Value converted to little endian.
+ **/
+__uint32_t uint32_to_little_endian(__uint32_t value) {
+    if (is_bigendian())
+        return bswap_32(value);
+
+    return value;
+}
+
+
+/**
+ * @brief Determine endianness.
+ *
+ * @param[in] value     a 64-bit value
+ * @return Value converted to little endian.
+ **/
+__uint64_t uint64_to_little_endian(__uint64_t value) {
+    if (is_bigendian())
+        return bswap_64(value);
+
+    return value;
+}
+
+
+/**
+ * @brief Determine endianness.
+ *
+ * @param[in] value     pointer to a 32-bit value
+ * @return Value converted to little endian.
+ **/
+__uint32_t uint32_in_expected_order(const unsigned char* value) {
+    __uint32_t result;
+    memcpy(&result, value, sizeof(result));
+    if (is_bigendian())
+        return bswap_32(result);
+
+    return result;
+}
+
+
+/**
+ * @brief Determine endianness.
+ *
+ * @param[in] value     pointer to a 64-bit value
+ * @return Value converted to little endian.
+ **/
+__uint64_t uint64_in_expected_order(const unsigned char* value) {
+    __uint64_t result;
+    memcpy(&result, value, sizeof(result));
+    if (is_bigendian())
+        return bswap_64(result);
+
+    return result;
 }
 
 

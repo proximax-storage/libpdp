@@ -16,6 +16,11 @@
 #define __A_PDP_MISC_H__
 
 
+#define WRITE_UINT32(BUF, VALUE)                            \
+    value = uint32_to_little_endian((__uint32_t)VALUE);     \
+    memcpy(BUF, &value, sizeof(__uint32_t));                \
+    BUF += sizeof(__uint32_t);
+
 /*
  * function prototypes - apdp.c
  */
@@ -30,6 +35,14 @@ int apdp_serialize_tags(const pdp_ctx_t *ctx, const pdp_apdp_tagdata_t* t,
         unsigned char **buffer, unsigned int *buffer_len);
 int apdp_deserialize_tag(const pdp_ctx_t *ctx, pdp_apdp_tag_t* tag,
         unsigned char *buffer, unsigned int buffer_len);
+int apdp_serialize_challenge(const pdp_ctx_t *ctx, const pdp_apdp_challenge_t* t,
+        unsigned char **buffer, unsigned int *buffer_len);
+int apdp_deserialize_challenge(const pdp_ctx_t *ctx, pdp_apdp_challenge_t* tag,
+        const unsigned char *buffer, unsigned int buffer_len);
+int apdp_serialize_proof(const pdp_ctx_t *ctx, const pdp_apdp_proof_t* t,
+        unsigned char **buffer, unsigned int *buffer_len);
+int apdp_deserialize_proof(const pdp_ctx_t *ctx, pdp_apdp_proof_t* tag,
+        const unsigned char *buffer, unsigned int buffer_len);
 
 #endif
 /** @} */

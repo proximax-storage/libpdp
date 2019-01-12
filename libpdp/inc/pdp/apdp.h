@@ -62,9 +62,11 @@ int apdp_ctx_init(pdp_ctx_t *ctx);
 int apdp_ctx_create(pdp_ctx_t *ctx);
 int apdp_ctx_free(pdp_ctx_t *ctx);
 int apdp_key_gen(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub);
-int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path);
-int apdp_key_open(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub, 
-        const char* path);
+int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path,
+        unsigned char** pri_key_buffer, unsigned int* pri_key_buffer_length,
+        unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length);
+int apdp_key_open(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub, const char* path,
+        const unsigned char* pri_key_buffer, const unsigned char* pub_key_buffer);
 int apdp_key_free(const pdp_ctx_t *ctx, pdp_key_t *k);
 int apdp_tags_gen(pdp_ctx_t *ctx, pdp_apdp_key_t *k, pdp_apdp_tagdata_t *t);
 int apdp_tags_free(const pdp_ctx_t *ctx, pdp_apdp_tagdata_t *t);

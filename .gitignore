@@ -25,3 +25,5 @@ tools/test-files/*
 *.out
 *.app
 
+# Idea project
+.idea/*

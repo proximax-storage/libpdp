@@ -503,7 +503,7 @@ int main(int argc, char **argv)
     // if we do an op that needs a key, prepare the key
     if (params.keypath) {
         VERBOSE(params.verb, "Trying to open keys...");
-        if ((error = pdp_key_open(ctx, &key, &pk, params.keypath)) != 0) {
+        if ((error = pdp_key_open(ctx, &key, &pk, params.keypath, NULL)) != 0) {
             VERBOSE(params.verb, "None found at [%s].\n", params.keypath);
         } else {
             key_stat = 1;
@@ -520,7 +520,7 @@ int main(int argc, char **argv)
     }
     if (!key_stat && params.keypath) {
         VERBOSE(params.verb, "Store keys...");
-        if ((error = pdp_key_store(ctx, &key, params.keypath)) != 0) {
+        if ((error = pdp_key_store(ctx, &key, params.keypath, NULL, NULL, NULL, NULL)) != 0) {
             ERROR("error: couldn't store keys at [%s]", params.keypath);
             goto cleanup;
         }

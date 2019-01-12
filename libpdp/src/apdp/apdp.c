@@ -36,7 +36,15 @@ struct pdp_job_arg {
     int index;                  ///< used to determine which blocks to tag
     int numblocks;              ///< number of blocks this job needs to tag
     pdp_apdp_tag_t **tags;      ///< memory used to store the result
+    pthread_mutex_t *lock;      ///< mutex to synchronize external file reading
 };
+
+unsigned int get_num_blocks(off_t file_st_size, unsigned int block_size) {
+    unsigned int num_blocks = (file_st_size / block_size);
+    if (file_st_size % block_size) num_blocks++;
+    if (num_blocks < 1) num_blocks = 1;
+    return num_blocks;
+}
 
 
 /**
@@ -143,17 +151,13 @@ int apdp_ctx_create(pdp_ctx_t *ctx)
     }
 
     // set number of blocks, if possible early
-    p->num_blocks = 0;
-    if (ctx->file_st_size) {
-        p->num_blocks = (ctx->file_st_size / p->block_size);
-        p->num_blocks = (p->num_blocks < 1) ? 1 : p->num_blocks;
-    }
+    p->num_blocks = get_num_blocks(ctx->file_st_size, p->block_size);
 
     // set default function pointers
     if (ctx->opts & PDP_OPT_USE_S3) {
         ctx->ops->get_tag = apdp_get_tag_s3;
         ctx->ops->get_block = apdp_get_block_s3;
-    } else {
+    } else if (~ctx->opts & PDP_OPT_EXT_STRG) {
         ctx->ops->get_tag = apdp_get_tag_file;
         ctx->ops->get_block = apdp_get_block_file;
     }
@@ -312,33 +316,51 @@ static void *apdp_tag_thread(void *args)
     size_t buf_len = 0;
     int *ret = NULL;
     
-    if (!arg || !arg->ctx || !arg->key || !arg->file ||
+    if (!arg || !arg->ctx || !arg->key || ((~arg->ctx->opts & PDP_OPT_EXT_STRG) && !arg->file) ||
                 !arg->tags || !arg->numblocks)
         goto cleanup;
 
     ctx = arg->ctx; 
     p = ctx->apdp_param;
-    buf_len = sizeof(unsigned char) * p->block_size;
+    buf_len = p->block_size;
     
     // allocate memory for return value (will be freed by producer thread)
     if ((ret = malloc(sizeof(int))) == NULL)
         goto cleanup;
     *ret = -1;
 
-    // allocate temp memory for reading a block and generating a tag / digest
-    if ((buf = malloc(buf_len)) == NULL)
-        goto cleanup;
-
     // For N threads, read and tag every N-th block
     block = arg->index;
     for (i = 0; i < arg->numblocks; i++) {
-        memset(buf, 0, p->block_size);
         tag = NULL;
 
-        // read file data
-        fseek(arg->file, block * p->block_size, SEEK_SET);
-        fread(buf, 1, p->block_size, arg->file);
-        if (ferror(arg->file)) goto cleanup;
+        if (ctx->opts & PDP_OPT_EXT_STRG) {
+            unsigned int tmp = p->block_size;
+
+            if (arg->lock) {
+                if (pthread_mutex_lock(arg->lock))
+                    goto cleanup;
+            }
+
+            int ret = ctx->ops->get_block(ctx, block, (void*)&buf, &tmp);
+
+            if (arg->lock) {
+                if (pthread_mutex_unlock(arg->lock))
+                    goto cleanup;
+            }
+            buf_len = tmp;
+
+            if (ret) goto cleanup;
+        } else {
+            // allocate temp memory for reading a block and generating a tag / digest
+            if (!buf && ((buf = malloc(buf_len)) == NULL))
+                goto cleanup;
+            memset(buf, 0, p->block_size);
+            // read file data
+            fseek(arg->file, block * p->block_size, SEEK_SET);
+            fread(buf, 1, p->block_size, arg->file);
+            if (ferror(arg->file)) goto cleanup;
+        }
 
         // tag the block
         if (apdp_tag_block(ctx, arg->key, buf, buf_len, block, &tag) != 0)
@@ -381,8 +403,11 @@ static int apdp_gen_tags_all(pdp_ctx_t *ctx, pdp_apdp_key_t *k,
     arg.index = 0;
     arg.numblocks = p->num_blocks;
     arg.tags = t->tags;
-    arg.file = fopen(ctx->filepath, "r");
-    if (!arg.file) goto cleanup;
+    arg.lock = NULL;
+    if (~ctx->opts & PDP_OPT_EXT_STRG) {
+        arg.file = fopen(ctx->filepath, "r");
+        if (!arg.file) goto cleanup;
+    }
 
     // perform the job
     ret = (int *) apdp_tag_thread((void *) &arg);
@@ -392,7 +417,7 @@ static int apdp_gen_tags_all(pdp_ctx_t *ctx, pdp_apdp_key_t *k,
     status = 0;
     
 cleanup:
-    if (arg.file) fclose(arg.file);
+    if ((~ctx->opts & PDP_OPT_EXT_STRG) && arg.file) fclose(arg.file);
     if (ret) free(ret);
     return status;
 }
@@ -414,6 +439,11 @@ static int apdp_gen_tags_all_threaded(pdp_ctx_t *ctx, pdp_apdp_key_t *k,
     struct pdp_job_arg *args = NULL;
     int *ret = NULL;
     int i, err;
+    pthread_mutex_t lock;
+
+    memset(&lock, 0, sizeof(pthread_mutex_t));
+    if (pthread_mutex_init(&lock, NULL))
+        return -1;
 
     if ((threads = malloc(sizeof(pthread_t) * ctx->num_threads)) == NULL)
         goto cleanup;
@@ -423,14 +453,17 @@ static int apdp_gen_tags_all_threaded(pdp_ctx_t *ctx, pdp_apdp_key_t *k,
 
     // spawn each thread
     for (i=0; i < ctx->num_threads; i++) {
-        // open a unique fd for each thread
-        args[i].file = fopen(ctx->filepath, "r");
-        if (!args[i].file) goto cleanup;
+        if (~ctx->opts & PDP_OPT_EXT_STRG) {
+            // open a unique fd for each thread
+            args[i].file = fopen(ctx->filepath, "r");
+            if (!args[i].file) goto cleanup;
+        }
         args[i].key = k;
         args[i].ctx = ctx;
         args[i].index = i;
         args[i].numblocks = p->num_blocks/ctx->num_threads;
         args[i].tags = t->tags;
+        args[i].lock = &lock;
 
         // if there is not an equal number of blocks to tag, add the 
         // extra blocks to the corresponding thread
@@ -456,10 +489,12 @@ static int apdp_gen_tags_all_threaded(pdp_ctx_t *ctx, pdp_apdp_key_t *k,
             goto cleanup;
         // free the space for its return value
         free(ret);
-        // close its file
-        if (args[i].file) {
-            fclose(args[i].file);
-            args[i].file = NULL;
+        if (~ctx->opts & PDP_OPT_EXT_STRG) {
+            // close its file
+            if (args[i].file) {
+                fclose(args[i].file);
+                args[i].file = NULL;
+            }
         }
     }
     // free common thread resources
@@ -468,17 +503,20 @@ static int apdp_gen_tags_all_threaded(pdp_ctx_t *ctx, pdp_apdp_key_t *k,
     return 0;
 
 cleanup:
+    pthread_mutex_destroy(&lock);
     // cancel outstanding threads
     // @TODO threads are not cancellation-safe, so this should be re-thought
     for (i=0; i < ctx->num_threads; i++) {
         if (threads[i] != 0) 
             pthread_cancel(threads[i]);
     }
-    // close their files
-    for (i=0; i < ctx->num_threads; i++) {
-        if (args && args[i].file) {
-            fclose(args[i].file);
-            args[i].file = NULL;
+    if (~ctx->opts & PDP_OPT_EXT_STRG) {
+        // close their files
+        for (i=0; i < ctx->num_threads; i++) {
+            if (args && args[i].file) {
+                fclose(args[i].file);
+                args[i].file = NULL;
+            }
         }
     }
     sfree(threads, sizeof(pthread_t) * ctx->num_threads);
@@ -499,7 +537,6 @@ cleanup:
 int apdp_tags_gen(pdp_ctx_t *ctx, pdp_apdp_key_t *k, pdp_apdp_tagdata_t *t)
 {
     pdp_apdp_ctx_t *p = NULL;
-    unsigned int num_blocks = 0;
     int err = 0;
     int status = -1;
 
@@ -511,10 +548,7 @@ int apdp_tags_gen(pdp_ctx_t *ctx, pdp_apdp_key_t *k, pdp_apdp_tagdata_t *t)
 
     // our caller filled out some ctx at this point, so
     // we can calculate some relevant params
-    num_blocks = (ctx->file_st_size / p->block_size);
-    if (ctx->file_st_size % p->block_size)
-        num_blocks++;
-    p->num_blocks = num_blocks;
+    p->num_blocks = get_num_blocks(ctx->file_st_size, p->block_size);
 
     // allocate space for tags
     t->tags_size = p->num_blocks * sizeof(pdp_apdp_tag_t *);
@@ -571,7 +605,7 @@ int apdp_store(const pdp_ctx_t *ctx, const pdp_apdp_tagdata_t* tag)
     if (ctx->opts & PDP_OPT_USE_S3) {
         // we need to write ctx->filepath and the tagdata to S3
         return apdp_write_data_to_s3(ctx, tag);
-    } else {
+    } else if (~ctx->opts & PDP_OPT_EXT_STRG) {
         // the file we tagged is already stored in ctx->filepath
         // so we only need to write tag data to ctx->ofilepath
         return apdp_write_tags_to_file(ctx, tag);
@@ -799,7 +833,9 @@ int apdp_proof_gen(const pdp_ctx_t *ctx, const pdp_apdp_key_t *key,
     p = ctx->apdp_param;
 
     // Allocate a block and the proof structure
-    if ((block = malloc(p->block_size)) == NULL) goto cleanup;
+    if (~ctx->opts & PDP_OPT_EXT_STRG)
+        if ((block = malloc(p->block_size)) == NULL) goto cleanup;
+    if ((tag = malloc(sizeof(pdp_apdp_tag_t))) == NULL) goto cleanup;
     if ((proof->T = BN_new()) == NULL) goto cleanup;    
     if ((proof->rho_temp = BN_new()) == NULL) goto cleanup;
 
@@ -808,18 +844,25 @@ int apdp_proof_gen(const pdp_ctx_t *ctx, const pdp_apdp_key_t *key,
     if (!I) goto cleanup;
 
     for(i = 0; i < chal->c; i++) {
-        memset(block, 0, p->block_size);
+        if (~ctx->opts & PDP_OPT_EXT_STRG)
+            memset(block, 0, p->block_size);
+        memset(tag, 0, sizeof(pdp_apdp_tag_t));
+
         block_len = p->block_size;
 
         err = ctx->ops->get_tag(ctx, I[i], &tag, &tag_len); 
         if (err) goto cleanup;
-        err = ctx->ops->get_block(ctx, I[i], block, &block_len);
+
+        if (ctx->opts & PDP_OPT_EXT_STRG) {
+            err = ctx->ops->get_block(ctx, I[i], (void*)&block, &block_len);
+        } else {
+            err = ctx->ops->get_block(ctx, I[i], block, &block_len);
+        }
         if (err) goto cleanup;
+
         err = apdp_proof_update(ctx, key, proof, chal, tag, 
                                 block, p->block_size, i);
         if (err) goto cleanup;
-        apdp_tag_free(tag);
-        tag = NULL;
     }
     // 'finalize' the proof
     err = apdp_proof_update(ctx, key, proof, chal, NULL, NULL, 0, 0);
@@ -828,7 +871,7 @@ int apdp_proof_gen(const pdp_ctx_t *ctx, const pdp_apdp_key_t *key,
     status = 0;
     
 cleanup:
-    sfree(block, p->block_size);
+    sfree(block, block_len);
     sfree(I, chal->c * sizeof(unsigned int));
     if (tag) apdp_tag_free(tag);
 
