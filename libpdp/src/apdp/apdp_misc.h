@@ -21,6 +21,8 @@
     memcpy(BUF, &value, sizeof(__uint32_t));                \
     BUF += sizeof(__uint32_t);
 
+unsigned int get_num_blocks(off_t file_st_size, unsigned int block_size);
+
 /*
  * function prototypes - apdp.c
  */
@@ -43,6 +45,10 @@ int apdp_serialize_proof(const pdp_ctx_t *ctx, const pdp_apdp_proof_t* t,
         unsigned char **buffer, unsigned int *buffer_len);
 int apdp_deserialize_proof(const pdp_ctx_t *ctx, pdp_apdp_proof_t* tag,
         const unsigned char *buffer, unsigned int buffer_len);
+
+int apdp_tag_block(pdp_ctx_t *ctx, pdp_apdp_key_t *key,
+                   unsigned char *block, size_t block_len,
+                   int index, pdp_apdp_tag_t **t);
 
 #endif
 /** @} */

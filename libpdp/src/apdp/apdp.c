@@ -223,7 +223,7 @@ cleanup:
  * @param[out]    t           *t is a pointer to a filled-out tag
  * @return 0 on success, non-zero on error
  **/
-static int apdp_tag_block(pdp_ctx_t *ctx, pdp_apdp_key_t *key,
+int apdp_tag_block(pdp_ctx_t *ctx, pdp_apdp_key_t *key,
                           unsigned char *block, size_t block_len,
                           int index, pdp_apdp_tag_t **t)
 {
@@ -800,7 +800,6 @@ finalize:
     proof->rho = gen_bn_H(proof->rho_temp, &(proof->rho_size));
     if (!proof->rho) goto cleanup;
     status = 0;
-    goto cleanup;
 
 cleanup:
     if (coefficient_a) BN_clear_free(coefficient_a);

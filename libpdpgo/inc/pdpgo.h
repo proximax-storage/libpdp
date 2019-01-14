@@ -80,6 +80,9 @@ void go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail);
 
 // Proof Of Data Possession.
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data);
+int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data);
+int go_pdp_generate_tag(go_pdp_data_t* pdp_data, unsigned char *block, size_t block_len, int index);
+int go_pdp_generate_tags_finalize();
 int go_pdp_generate_tags(go_pdp_data_t* pdp_data);
 int go_pdp_generate_challenge(go_pdp_data_t* pdp_data);
 int go_pdp_generate_proof(go_pdp_data_t* pdp_data);

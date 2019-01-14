@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 #include "pdpgo.h"
+#include <openssl/evp.h>
 
 int go_pdp_check_struct(go_pdp_data_t* pdp_data, const char* func) {
     if (!pdp_data) {
@@ -539,4 +540,68 @@ int go_pdp_verify_proof(go_pdp_data_t* pdp_data) {
 
     return pdp_proof_verify(&pdp_data->ctx, &pdp_data->private_key, &pdp_data->verifier_challenge,
             &pdp_data->proof);
+}
+
+int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data) {
+    pdp_apdp_ctx_t *p = NULL;
+    pdp_apdp_tagdata_t *t = NULL;
+    int status = -1;
+
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+        return -1;
+    }
+
+    if (pdp_data->ctx.algo != PDP_APDP) {
+        DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
+        return -1;
+    }
+
+    if (!pdp_data->private_key.apdp) {
+        DEBUG(1, "%s: no private key", __FUNCTION__);
+        return -1;
+    }
+
+    p = pdp_data->ctx.apdp_param;
+
+    OpenSSL_add_all_digests();
+
+    p->num_blocks = get_num_blocks(pdp_data->ctx.file_st_size, p->block_size);
+
+    // allocate space for tags
+    t = pdp_data->tags.apdp;
+    t->tags_size = p->num_blocks * sizeof(pdp_apdp_tag_t *);
+    t->tags_num = p->num_blocks;
+    if ((t->tags = malloc(t->tags_size)) == NULL)
+        goto cleanup;
+    memset(t->tags, 0, t->tags_size);
+
+    status = 0;
+
+cleanup:
+    if (status) sfree(t->tags, t->tags_size);
+    return status;
+}
+
+int go_pdp_generate_tag(go_pdp_data_t* pdp_data, unsigned char *block, size_t block_len, int index) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+        return -1;
+    }
+
+    if (pdp_data->ctx.algo != PDP_APDP) {
+        DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
+        return -1;
+    }
+
+    if (!pdp_data->private_key.apdp || !block || !block_len ||
+        !pdp_data->tags.apdp || index >= pdp_data->tags.apdp->tags_num)
+        return -1;
+
+    return apdp_tag_block(&pdp_data->ctx, pdp_data->private_key.apdp, block, block_len, index,
+        &pdp_data->tags.apdp->tags[index]);
+}
+
+int go_pdp_generate_tags_finalize() {
+    EVP_cleanup();
+
+    return 0;
 }
