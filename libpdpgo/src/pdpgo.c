@@ -455,7 +455,7 @@ void go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail) {
 
 void go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size) {
     if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
-        return;
+        return -1;
     }
 
     pdp_data->ctx.apdp_param->block_size = adjust_block_size(block_size);
