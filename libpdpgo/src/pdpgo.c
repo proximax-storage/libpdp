@@ -417,18 +417,26 @@ cleanup:
     return NULL;
 }
 
+void go_pdp_proof_free(go_pdp_data_t* pdp_data) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+        return;
+    }
+    pdp_proof_free(&pdp_data->ctx, &pdp_data->proof);
+    sfree(pdp_data->serialized_proof, pdp_data->serialized_proof_size);
+}
+
 void go_pdp_data_fields_free(go_pdp_data_t* pdp_data) {
     pdp_key_free(&pdp_data->ctx, &pdp_data->private_key);
     pdp_key_free(&pdp_data->ctx, &pdp_data->public_key);
     pdp_tags_free(&pdp_data->ctx, &pdp_data->tags);
     pdp_challenge_free(&pdp_data->ctx, &pdp_data->verifier_challenge);
     pdp_challenge_free(&pdp_data->ctx, &pdp_data->prover_challenge);
-    pdp_proof_free(&pdp_data->ctx, &pdp_data->proof);
     sfree(pdp_data->file_hash, pdp_data->file_hash_size);
     sfree(pdp_data->serialized_public_key, pdp_data->serialized_public_key_size);
     sfree(pdp_data->serialized_tags, pdp_data->serialized_tags_size);
+    sfree(pdp_data->serialized_verifier_challenge, pdp_data->serialized_verifier_challenge_size);
     sfree(pdp_data->serialized_prover_challenge, pdp_data->serialized_prover_challenge_size);
-    sfree(pdp_data->serialized_proof, pdp_data->serialized_proof_size);
+    go_pdp_proof_free(pdp_data);
 }
 
 void go_pdp_data_free(go_pdp_data_t* pdp_data) {
