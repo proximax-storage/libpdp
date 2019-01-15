@@ -22,6 +22,7 @@
     BUF += sizeof(__uint32_t);
 
 unsigned int get_num_blocks(off_t file_st_size, unsigned int block_size);
+unsigned int adjust_block_size(unsigned int block_size);
 
 /*
  * function prototypes - apdp.c

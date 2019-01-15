@@ -371,12 +371,7 @@ int go_pdp_deserialize_proof(go_pdp_data_t* pdp_data) {
     return -1;
 }
 
-go_pdp_data_t* create_apdp_data(off_t file_size, unsigned int block_size, unsigned short verbose, get_block_callback get_block) {
-    if (!file_size) {
-        DEBUG(1, "%s: file size is not set", __FUNCTION__);
-        return NULL;
-    }
-
+go_pdp_data_t* create_apdp_data(unsigned short verbose, get_block_callback get_block) {
     go_pdp_data_t* pdp_data = NULL;
 
     if ((pdp_data = malloc(sizeof(go_pdp_data_t))) == NULL) {
@@ -394,8 +389,6 @@ go_pdp_data_t* create_apdp_data(off_t file_size, unsigned int block_size, unsign
 
     pdp_data->ctx.opts |= PDP_OPT_EXT_STRG;
     pdp_data->ctx.opts |= PDP_OPT_THREADED;
-    pdp_data->ctx.file_st_size = file_size;
-    pdp_data->ctx.apdp_param->block_size = block_size;
     pdp_data->ctx.verbose = verbose;
 
     if (pdp_ctx_create(&pdp_data->ctx, NULL, NULL)) {
@@ -458,6 +451,15 @@ void go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail) {
     if (pdp_data) {
         pdp_data->fail = fail;
     }
+}
+
+void go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+        return;
+    }
+
+    pdp_data->ctx.apdp_param->block_size = adjust_block_size(block_size);
+    pdp_data->ctx.file_st_size = file_size;
 }
 
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data) {
@@ -566,6 +568,11 @@ int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data) {
 
     if (!pdp_data->private_key.apdp) {
         DEBUG(1, "%s: no private key", __FUNCTION__);
+        return -1;
+    }
+
+    if (!pdp_data->ctx.file_st_size || !p->block_size) {
+        DEBUG(1, "%s: file or block size is zero", __FUNCTION__);
         return -1;
     }
 

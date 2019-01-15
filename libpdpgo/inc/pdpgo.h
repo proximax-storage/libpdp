@@ -71,13 +71,14 @@ typedef struct {
 } go_pdp_data_t;
 
 // Data allocation/deallocation.
-go_pdp_data_t* create_apdp_data(off_t file_size, unsigned int block_size, unsigned short verbose, get_block_callback get_block);
+go_pdp_data_t* create_apdp_data(unsigned short verbose, get_block_callback get_block);
 void go_pdp_data_free(go_pdp_data_t* pdp_data);
 void go_pdp_proof_free(go_pdp_data_t* pdp_data);
 
 // Set attributes.
 void go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size);
 void go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail);
+void go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size);
 
 // Proof Of Data Possession.
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data);

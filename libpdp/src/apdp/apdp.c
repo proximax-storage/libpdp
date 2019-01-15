@@ -40,10 +40,23 @@ struct pdp_job_arg {
 };
 
 unsigned int get_num_blocks(off_t file_st_size, unsigned int block_size) {
+    if (!block_size) return 1;
+
     unsigned int num_blocks = (file_st_size / block_size);
     if (file_st_size % block_size) num_blocks++;
     if (num_blocks < 1) num_blocks = 1;
     return num_blocks;
+}
+
+unsigned int adjust_block_size(unsigned int block_size) {
+    if (!block_size) {
+        block_size = APDP_DEFAULT_BLOCK_SIZE_BYTES;
+    } else {
+        // 'clean' any non-default value specified
+        block_size = next_pow_2(block_size);
+        block_size = (block_size <= 128) ? 256 : block_size;
+    }
+    return block_size;
 }
 
 
@@ -111,22 +124,13 @@ int apdp_ctx_init(pdp_ctx_t *ctx)
 int apdp_ctx_create(pdp_ctx_t *ctx)
 {
     pdp_apdp_ctx_t *p = NULL;
-    unsigned int tmp;
 
     if (!is_apdp(ctx))
         return -1;    
     p = ctx->apdp_param;
 
     // block size
-    tmp = p->block_size;
-    if (!tmp) {
-        tmp = APDP_DEFAULT_BLOCK_SIZE_BYTES;
-    } else {
-        // 'clean' any non-default value specified
-        tmp = next_pow_2(tmp);
-        tmp = (tmp <= 128) ? 256 : tmp;
-    }
-    p->block_size = tmp;
+    p->block_size = adjust_block_size(p->block_size);
 
     // number of blocks to challenge
     if (!p->num_challenge_blocks) {
