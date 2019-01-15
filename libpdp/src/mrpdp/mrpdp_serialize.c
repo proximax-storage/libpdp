@@ -124,7 +124,7 @@ int mrpdp_serialize_tags(const pdp_ctx_t *ctx, const pdp_mrpdp_tagdata_t* t,
         DEBUG(1, "\n  Tim byte len [%02d]", BN_num_bytes(tag->Tim));
         DEBUG(1, "\n  Tim (hex) [%s]", BN_bn2hex(tag->Tim));
         DEBUG(1, "\n  index [%d]",  tag->index);
-        DEBUG(1, "\n  prf_size [%d]", tag->index_prf_size);
+        DEBUG(1, "\n  prf_size [%lu]", tag->index_prf_size);
         pdp_hexdump("  prf", i, tag->index_prf, tag->index_prf_size);
         pdp_hexdump(" Ser. tag", i, buf_ptr - tag_size, tag_size);
 #endif // _PDP_DEBUG

@@ -128,6 +128,14 @@ int pdp_get_passphrase(const pdp_ctx_t *ctx, char *passwd, size_t len)
     if (!ctx || !passwd || !len)
         return -1;
 
+    if (ctx->opts & PDP_OPT_EXT_STRG) {
+        memset(passwd, 0, len);
+        const char* phrase = "hello";
+        size_t phrase_size = sizeof(phrase);
+        memcpy(passwd, phrase, phrase_size);
+        return 0;
+    }
+
     interactive = (ctx->opts & PDP_PW_NOINPUT) ? 0 : 1;
     if ((passwd2 = malloc(len)) == NULL)
         goto cleanup;

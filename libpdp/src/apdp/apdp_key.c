@@ -26,6 +26,7 @@
 #include <openssl/hmac.h>
 #include <pdp/apdp.h>
 #include "pdp_misc.h"
+#include "apdp_misc.h"
 
 
 /**
@@ -252,7 +253,9 @@ int apdp_key_gen(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub)
  * @param[in]   path  path to directory to use to store keydata
  * @return 0 on success, non-zero on error
  **/
-int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path)
+int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path,
+        unsigned char** pri_key_buffer, unsigned int* pri_key_buffer_length,
+        unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length)
 {
     int err, status = -1;
     size_t gen_len, enc_len;
@@ -269,11 +272,21 @@ int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path)
     unsigned char *gen = NULL;   // buffer to hold serialized g
     pdp_apdp_key_t *key = NULL;
     pdp_apdp_ctx_t *p = NULL;
+    BIO *pub_key_bio = NULL;
+    BIO *pri_key_bio = NULL;
+    __uint32_t value;
 
-    if (!is_apdp(ctx) || !k || !path || (strlen(path) > MAXPATHLEN))
+    if (!is_apdp(ctx) || !k ||
+            (!(path && (strlen(path) <= MAXPATHLEN)) &&
+            !(pri_key_buffer && pri_key_buffer_length && pub_key_buffer && pub_key_buffer_length)))
         return -1;
     p = ctx->apdp_param;
     key = k->apdp;
+
+    if (pri_key_buffer)
+        *pri_key_buffer = NULL;
+    if (pub_key_buffer)
+        *pub_key_buffer = NULL;
 
     if (p->prf_key_size > sizeof(key_v)) {
         PDP_ERR("Buffer for PRF key 'v' is not large enough.");
@@ -285,21 +298,23 @@ int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path)
     if ((salt = malloc(p->prf_key_size)) == NULL) goto cleanup;
     memset(salt, 0, p->prf_key_size);
     memset(key_v, 0, sizeof(key_v));
-    
-    // Check 'path' exists and derive names for key data files to store there
-    err = get_key_paths(pri_keypath, sizeof(pri_keypath),
-                        pub_keypath, sizeof(pub_keypath), path, "apdp");
-    if (err) goto cleanup;
 
-    if ((access(pri_keypath, F_OK) == 0) || (access(pub_keypath, F_OK) == 0)) {
-        // keys already exist --- we don't need to store them
-        status = 0;
-        goto cleanup;
+    if (path) {
+        // Check 'path' exists and derive names for key data files to store there
+        err = get_key_paths(pri_keypath, sizeof(pri_keypath),
+                            pub_keypath, sizeof(pub_keypath), path, "apdp");
+        if (err) goto cleanup;
+
+        if ((access(pri_keypath, F_OK) == 0) || (access(pub_keypath, F_OK) == 0)) {
+            // keys already exist --- we don't need to store them
+            status = 0;
+            goto cleanup;
+        }
+
+        // Open, create and truncate the key files
+        if ((pri_key = fopen(pri_keypath, "w")) == NULL) goto cleanup;
+        if ((pub_key = fopen(pub_keypath, "w")) == NULL) goto cleanup;
     }
-
-    // Open, create and truncate the key files
-    if ((pri_key = fopen(pri_keypath, "w")) == NULL) goto cleanup;
-    if ((pub_key = fopen(pub_keypath, "w")) == NULL) goto cleanup;
 
     // Get a passphrase to protect the stored key material
     if (pdp_get_passphrase(ctx, (char *) passwd, sizeof(passwd)) != 0)
@@ -309,9 +324,16 @@ int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path)
     if (!EVP_PKEY_set1_RSA(pkey, key->rsa)) goto cleanup;
 
     // Write the EVP key in PKCS8 password-protected format
-    err = PEM_write_PKCS8PrivateKey(pri_key, pkey, EVP_aes_256_cbc(), 
-                                    NULL, 0, 0, passwd);
-    if (!err) goto cleanup;
+    if (path) {
+        err = PEM_write_PKCS8PrivateKey(pri_key, pkey, EVP_aes_256_cbc(),
+                                        NULL, 0, 0, passwd);
+        if (!err) goto cleanup;
+    } else if (pri_key_buffer) {
+        pri_key_bio = BIO_new(BIO_s_mem());
+        err = PEM_write_bio_PKCS8PrivateKey(pri_key_bio, pkey, NULL,
+                                        NULL, 0, 0, passwd);
+        if (!err) goto cleanup;
+    }
 
     // Generate random bytes for a salt
     if (!RAND_bytes(salt, p->prf_key_size)) goto cleanup;
@@ -329,29 +351,75 @@ int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path)
                        dk, p->prp_key_size);
     if (err) goto cleanup;
     if (enc_len != (sizeof(key_v) + 8)) goto cleanup; // buffer + 8 bytes
-    
-    // Write the salt
-    fwrite(salt, p->prf_key_size, 1, pri_key);
-    if (ferror(pri_key)) goto cleanup;
-    
-    // Write the encypted value of v
-    fwrite(enc_v, enc_len, 1, pri_key);
-    if (ferror(pri_key)) goto cleanup;
-    
-    // Write the public key
-    if (!PEM_write_RSAPublicKey(pub_key, key->rsa)) goto cleanup;
 
-    // Write the length of g
+    // Get the length of g
     gen_len = BN_num_bytes(key->g);
-    fwrite(&gen_len, sizeof(gen_len), 1, pub_key);
-    if (ferror(pub_key)) goto cleanup;
-
-    // Convert g to binary and write it
     if ((gen = malloc(gen_len)) == NULL) goto cleanup;
     memset(gen, 0, gen_len);
+    // Convert g to binary
     if (!BN_bn2bin(key->g, gen)) goto cleanup;
-    fwrite(gen, gen_len, 1, pub_key);
-    if (ferror(pub_key)) goto cleanup;
+
+    if (path) {
+        // Write the salt
+        fwrite(salt, p->prf_key_size, 1, pri_key);
+        if (ferror(pri_key)) goto cleanup;
+
+        // Write the encypted value of v
+        fwrite(enc_v, enc_len, 1, pri_key);
+        if (ferror(pri_key)) goto cleanup;
+
+        // Write the public key
+        if (!PEM_write_RSAPublicKey(pub_key, key->rsa)) goto cleanup;
+
+        // Write the length of g
+        fwrite(&gen_len, sizeof(gen_len), 1, pub_key);
+        if (ferror(pub_key)) goto cleanup;
+
+        // Write g
+        fwrite(gen, gen_len, 1, pub_key);
+        if (ferror(pub_key)) goto cleanup;
+    } else {
+        // Private key stuff.
+        char* tmp;
+        __uint32_t bio_data_size = BIO_get_mem_data(pri_key_bio, &tmp);
+        *pri_key_buffer_length = bio_data_size + 3 * sizeof(__uint32_t) + p->prf_key_size + enc_len;
+        if ((*pri_key_buffer = malloc(*pri_key_buffer_length)) == NULL) goto cleanup;
+
+        unsigned char* pri_key_buffer_ptr = *pri_key_buffer;
+
+        WRITE_UINT32(pri_key_buffer_ptr, bio_data_size);
+
+        if (BIO_read(pri_key_bio, pri_key_buffer_ptr, bio_data_size) <= 0) goto cleanup;
+        pri_key_buffer_ptr += bio_data_size;
+
+        WRITE_UINT32(pri_key_buffer_ptr, p->prf_key_size);
+
+        memcpy(pri_key_buffer_ptr, salt, p->prf_key_size);
+        pri_key_buffer_ptr += p->prf_key_size;
+
+        WRITE_UINT32(pri_key_buffer_ptr, enc_len);
+
+        memcpy(pri_key_buffer_ptr, enc_v, enc_len);
+
+        // Public key stuff.
+        pub_key_bio = BIO_new(BIO_s_mem());
+        if (!PEM_write_bio_RSAPublicKey(pub_key_bio, key->rsa)) goto cleanup;
+
+        bio_data_size = BIO_get_mem_data(pub_key_bio, &tmp);
+        *pub_key_buffer_length = bio_data_size + 2 * sizeof(__uint32_t) + gen_len;
+        if ((*pub_key_buffer = malloc(*pub_key_buffer_length)) == NULL) goto cleanup;
+
+        unsigned char* pub_key_buffer_ptr = *pub_key_buffer;
+
+        WRITE_UINT32(pub_key_buffer_ptr, bio_data_size);
+
+        if (BIO_read(pub_key_bio, pub_key_buffer_ptr, bio_data_size) <= 0) goto cleanup;
+        pub_key_buffer_ptr += bio_data_size;
+
+        WRITE_UINT32(pub_key_buffer_ptr, gen_len);
+
+        memcpy(pub_key_buffer_ptr, gen, gen_len);
+    }
     
     status = 0;
 
@@ -364,10 +432,18 @@ cleanup:
     sfree(salt, p->prf_key_size);
     sfree(enc_v, enc_len);
     sfree(gen, gen_len);
-    if (status != 0) {
-        PDP_ERR("Did not write key pair successfully.");
-        if (access(pub_keypath, F_OK) == 0) unlink(pub_keypath);
-        if (access(pri_keypath, F_OK) == 0) unlink(pri_keypath);
+    if (pri_key_bio) BIO_free(pri_key_bio);
+    if (pub_key_bio) BIO_free(pub_key_bio);
+    if (status) {
+        if (path) {
+            PDP_ERR("Did not write key pair successfully.");
+            if (access(pub_keypath, F_OK) == 0) unlink(pub_keypath);
+            if (access(pri_keypath, F_OK) == 0) unlink(pri_keypath);
+        }
+        if (pri_key_buffer && *pri_key_buffer)
+            sfree(*pri_key_buffer, *pri_key_buffer_length);
+        if (pub_key_buffer && *pub_key_buffer)
+            sfree(*pub_key_buffer, *pub_key_buffer_length);
     }
     return status;
 }
@@ -385,16 +461,18 @@ cleanup:
  * @return 0 on success, non-zero on error
  **/
 static int apdp_pub_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
-                             const char* pub_keypath)
+                             const char* pub_keypath, const unsigned char* buffer)
 {
     int status = -1;
     size_t gen_len;
     FILE *pub_key = NULL;
     unsigned char *gen = NULL;   // buffer to hold serialized rep of g
     pdp_apdp_key_t *key = NULL;
+    const unsigned char* buffer_ptr = NULL;
+    BIO *bio = NULL;
 
-    if (!is_apdp(ctx) || !k || !pub_keypath) return -1;
-    if (strlen(pub_keypath) > MAXPATHLEN) return -1;
+    if (!is_apdp(ctx) || !k || !(pub_keypath || buffer)) return -1;
+    if (pub_keypath && strlen(pub_keypath) > MAXPATHLEN) return -1;
 
     if ((key = malloc(sizeof(pdp_apdp_key_t))) == NULL) goto cleanup;
     memset(key, 0, sizeof(pdp_apdp_key_t));
@@ -404,19 +482,40 @@ static int apdp_pub_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
     if ((key->g = BN_new()) == NULL) goto cleanup;
 
     // Open the key files
-    if ((pub_key = fopen(pub_keypath, "r")) == NULL) goto cleanup;
+    if (pub_keypath && ((pub_key = fopen(pub_keypath, "r")) == NULL)) goto cleanup;
 
     // Read in the public key
-    key->rsa = PEM_read_RSAPublicKey(pub_key, NULL, NULL, NULL);
+    if (pub_keypath) {
+        key->rsa = PEM_read_RSAPublicKey(pub_key, NULL, NULL, NULL);
+    } else {
+        buffer_ptr = buffer;
+        __uint32_t bio_data_size = uint32_in_expected_order(buffer_ptr);
+        buffer_ptr += sizeof(__uint32_t);
+
+        bio = BIO_new(BIO_s_mem());
+        if (BIO_write(bio, buffer_ptr, bio_data_size) <= 0) goto cleanup;
+        buffer_ptr += bio_data_size;
+        key->rsa = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+        BIO_free(bio);
+        bio = NULL;
+    }
     if (key->rsa == NULL) goto cleanup;
     if (!key->rsa->n || !key->rsa->e) goto cleanup;
     
     // Read g data length and then binary g data
-    fread(&gen_len, sizeof(gen_len), 1, pub_key);
-    if (ferror(pub_key)) goto cleanup;
+    if (pub_keypath) {
+        fread(&gen_len, sizeof(gen_len), 1, pub_key);
+        if (ferror(pub_key)) goto cleanup;
+    } else {
+        gen_len = uint32_in_expected_order(buffer_ptr);
+    }
     if ((gen = malloc(gen_len)) == NULL) goto cleanup;
-    fread(gen, gen_len, 1, pub_key);
-    if (ferror(pub_key)) goto cleanup;
+    if (pub_keypath) {
+        fread(gen, gen_len, 1, pub_key);
+        if (ferror(pub_key)) goto cleanup;
+    } else {
+        memcpy(gen, buffer_ptr, gen_len);
+    }
 
     // Read g from its buffer into 'key'
     if (!BN_bin2bn(gen, gen_len, key->g)) goto cleanup;
@@ -428,9 +527,10 @@ cleanup:
     if (pub_key) fclose(pub_key);
     sfree(gen, gen_len);
     if (status) {
-        PDP_ERR("Couldn't open key file.");
+        PDP_ERR("Couldn't deserialize public key.");
         apdp_key_free(ctx, k);
-    }    
+    }
+    if (bio) BIO_free(bio);
     return status;
 }
 
@@ -448,7 +548,9 @@ cleanup:
  * @return 0 on success, non-zero on error
  **/
 static int apdp_pri_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
-                             const char* pri_keypath, const char* pub_keypath)
+                             const char* pri_keypath, const char* pub_keypath,
+                             const unsigned char* pri_key_buffer,
+                             const unsigned char* pub_key_buffer)
 {
     int err, status = -1;
     size_t key_v_len, gen_len;
@@ -468,11 +570,14 @@ static int apdp_pri_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
     BIGNUM *r2 = NULL;
     pdp_apdp_key_t *key = NULL;
     pdp_apdp_ctx_t *p = NULL;
+    const unsigned char* pri_key_buffer_ptr = NULL;
+    const unsigned char* pub_key_buffer_ptr = NULL;
+    BIO *pri_key_bio = NULL;
 
-    if (!is_apdp(ctx) || !k || !pri_keypath || !pub_keypath)
+    if (!is_apdp(ctx) || !k || (!(pri_keypath && pub_keypath) && !(pri_key_buffer && pub_key_buffer)))
         return -1;
-    if (strlen(pri_keypath) > MAXPATHLEN) return -1;
-    if (strlen(pub_keypath) > MAXPATHLEN) return -1;
+    if (pri_keypath && strlen(pri_keypath) > MAXPATHLEN) return -1;
+    if (pub_keypath && strlen(pub_keypath) > MAXPATHLEN) return -1;
     p = ctx->apdp_param;
 
     if ((key = malloc(sizeof(pdp_apdp_key_t))) == NULL) goto cleanup;
@@ -485,33 +590,64 @@ static int apdp_pri_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
     if ((r1 = BN_new()) == NULL)  goto cleanup;    
     if ((r2 = BN_new()) == NULL) goto cleanup;
     if ((bctx = BN_CTX_new()) == NULL) goto cleanup;
-    if ((salt = malloc(p->prf_key_size)) == NULL) goto cleanup;
-    if ((enc_v = malloc(enc_v_len)) == NULL) goto cleanup;
     memset(key->v, 0, p->prf_key_size);
-    memset(enc_v, 0, enc_v_len);
-    memset(salt, 0, p->prf_key_size);
 
-    // Open the key files
-    if ((pri_key = fopen(pri_keypath, "r")) == NULL) goto cleanup;
-    if ((pub_key = fopen(pub_keypath, "r")) == NULL) goto cleanup;
+    if (pri_keypath && pub_keypath) {
+        // Open the key files
+        if ((pri_key = fopen(pri_keypath, "r")) == NULL) goto cleanup;
+        if ((pub_key = fopen(pub_keypath, "r")) == NULL) goto cleanup;
+    } else {
+        pri_key_buffer_ptr = pri_key_buffer;
+        pub_key_buffer_ptr = pub_key_buffer;
+    }
 
     // Get passphrase to access the private key material
     if (pdp_get_passphrase(ctx, (char *) passwd, sizeof(passwd)) != 0)
         goto cleanup;
 
     // Use passwd to read out private RSA EVP data
-    if ((pkey = PEM_read_PrivateKey(pri_key, NULL, NULL, passwd)) == NULL)
-        goto cleanup;
+    if (pri_key) {
+        if ((pkey = PEM_read_PrivateKey(pri_key, NULL, NULL, passwd)) == NULL)
+            goto cleanup;
+    } else {
+        __uint32_t bio_data_size = uint32_in_expected_order(pri_key_buffer_ptr);
+        pri_key_buffer_ptr += sizeof(__uint32_t);
+
+        pri_key_bio = BIO_new(BIO_s_mem());
+        if (BIO_write(pri_key_bio, pri_key_buffer_ptr, bio_data_size) <= 0) goto cleanup;
+        pri_key_buffer_ptr += bio_data_size;
+
+        pkey = PEM_read_bio_PrivateKey(pri_key_bio, NULL, NULL, passwd);
+        BIO_free(pri_key_bio);
+        pri_key_bio = NULL;
+        if (!pkey)
+            goto cleanup;
+    }
     
     // Read RSA EVP into 'key' and check it
     if ((key->rsa = EVP_PKEY_get1_RSA(pkey)) == NULL) goto cleanup;
     if (!RSA_check_key(key->rsa)) goto cleanup;
 
     // Get the salt and the encrypted PRF key v
-    fread(salt, p->prf_key_size, 1, pri_key);
-    if (ferror(pri_key)) goto cleanup;
-    fread(enc_v, enc_v_len, 1, pri_key);
-    if (ferror(pri_key)) goto cleanup;
+    if (pri_key) {
+        fread(salt, p->prf_key_size, 1, pri_key);
+        if (ferror(pri_key)) goto cleanup;
+        fread(enc_v, enc_v_len, 1, pri_key);
+        if (ferror(pri_key)) goto cleanup;
+    } else {
+        __uint32_t salt_size = uint32_in_expected_order(pri_key_buffer_ptr);
+        pri_key_buffer_ptr += sizeof(__uint32_t);
+
+        if ((salt = malloc(salt_size)) == NULL) goto cleanup;
+        memcpy(salt, pri_key_buffer_ptr, salt_size);
+        pri_key_buffer_ptr += salt_size;
+
+        enc_v_len = (size_t)uint32_in_expected_order(pri_key_buffer_ptr);
+        pri_key_buffer_ptr += sizeof(__uint32_t);
+
+        if ((enc_v = malloc(enc_v_len)) == NULL) goto cleanup;
+        memcpy(enc_v, pri_key_buffer_ptr, enc_v_len);
+    }
     
     // Generate a password-based key
     err = PBKDF2(&dk, p->prp_key_size, (unsigned char *) passwd, 
@@ -531,15 +667,32 @@ static int apdp_pri_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
     memcpy(key->v, key_v, p->prf_key_size);
 
     // Skip over the public key
-    rsa = PEM_read_RSAPublicKey(pub_key, NULL, NULL, NULL);
-    if (!rsa) goto cleanup;
+    if (pub_key) {
+        rsa = PEM_read_RSAPublicKey(pub_key, NULL, NULL, NULL);
+        if (!rsa) goto cleanup;
+    } else {
+        __uint32_t pub_key_size = uint32_in_expected_order(pub_key_buffer_ptr);
+        if (!pub_key_size) goto cleanup;
+        pub_key_buffer_ptr += sizeof(__uint32_t) + pub_key_size;
+    }
     
     // Read g data length and then binary g data
-    fread(&gen_len, sizeof(gen_len), 1, pub_key);
-    if (ferror(pub_key)) goto cleanup;
+    if (pub_key) {
+        fread(&gen_len, sizeof(gen_len), 1, pub_key);
+        if (ferror(pub_key)) goto cleanup;
+    } else {
+        gen_len = (size_t)uint32_in_expected_order(pub_key_buffer_ptr);
+        pub_key_buffer_ptr += sizeof(__uint32_t);
+    }
+
     if ((gen = malloc(gen_len)) == NULL) goto cleanup;
-    fread(gen, gen_len, 1, pub_key);
-    if (ferror(pub_key)) goto cleanup;
+
+    if (pub_key) {
+        fread(gen, gen_len, 1, pub_key);
+        if (ferror(pub_key)) goto cleanup;
+    } else {
+        memcpy(gen, pri_key_buffer_ptr, gen_len);
+    }
 
     // Read g from its buffer into 'key'
     if (!BN_bin2bn(gen, gen_len, key->g)) goto cleanup;
@@ -556,13 +709,13 @@ cleanup:
     if (bctx) BN_CTX_free(bctx);
     if (pkey) EVP_PKEY_free(pkey);
     if (rsa) RSA_free(rsa);
-    sfree(key_v, key_v_len);
-    sfree(dk, p->prp_key_size);
-    sfree(salt, p->prf_key_size);
-    sfree(enc_v, enc_v_len);
-    sfree(gen, gen_len);
+    if (key_v) sfree(key_v, key_v_len);
+    if (dk) sfree(dk, p->prp_key_size);
+    if (salt) sfree(salt, p->prf_key_size);
+    if (enc_v) sfree(enc_v, enc_v_len);
+    if (gen) sfree(gen, gen_len);
     if (status) {
-        PDP_ERR("Couldn't open key files.");
+        PDP_ERR("Couldn't deserialize keys.");
         apdp_key_free(ctx, k);
     }    
     return status;
@@ -579,27 +732,38 @@ cleanup:
  * @return 0 on success, non-zero on error
  **/
 int apdp_key_open(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub,
-                  const char* path)
+                  const char* path, const unsigned char* pri_key_buffer,
+                  const unsigned char* pub_key_buffer)
 {
-    char pri_keypath[MAXPATHLEN]; // path to pri key data
-    char pub_keypath[MAXPATHLEN]; // path to pub key data
+//    char pri_keypath[MAXPATHLEN]; // path to pri key data
+//    char pub_keypath[MAXPATHLEN]; // path to pub key data
+    char* pri_keypath = NULL; // path to pri key data
+    char* pub_keypath = NULL; // path to pub key data
     int err = -1;
 
-    if (!is_apdp(ctx) || !path || (strlen(path) > MAXPATHLEN))
+    if (!is_apdp(ctx) || !((path && (strlen(path) <= MAXPATHLEN)) ||
+            (((k && pri_key_buffer) || (!k && !pri_key_buffer)) && pub && pub_key_buffer)))
         return -1;
-    
-    // Check 'path' exists and derive names for key data files
-    err = get_key_paths(pri_keypath, sizeof(pri_keypath),
-                        pub_keypath, sizeof(pub_keypath), path, "apdp");
-    if (err) goto cleanup;
-    if (access(pri_keypath, F_OK) && access(pub_keypath, F_OK)) goto cleanup;
+
+    if (path) {
+        if ((pri_keypath = malloc(MAXPATHLEN)) == NULL) goto cleanup;
+        memset(pri_keypath, 0, sizeof(MAXPATHLEN));
+        if ((pub_keypath = malloc(MAXPATHLEN)) == NULL) goto cleanup;
+        memset(pub_keypath, 0, sizeof(MAXPATHLEN));
+
+        // Check 'path' exists and derive names for key data files
+        err = get_key_paths(pri_keypath, sizeof(pri_keypath),
+                            pub_keypath, sizeof(pub_keypath), path, "apdp");
+        if (err) goto cleanup;
+        if (access(pri_keypath, F_OK) && access(pub_keypath, F_OK)) goto cleanup;
+    }
 
     if (k) {
-        err = apdp_pri_key_open(ctx, k, pri_keypath, pub_keypath);
+        err = apdp_pri_key_open(ctx, k, pri_keypath, pub_keypath, pri_key_buffer, pub_key_buffer);
         if (err) goto cleanup;
     }
     if (pub) {
-        err = apdp_pub_key_open(ctx, pub, pub_keypath);
+        err = apdp_pub_key_open(ctx, pub, pub_keypath, pub_key_buffer);
         if (err) goto cleanup;    
     }
     return 0;

@@ -48,6 +48,7 @@
 #define DEBUG(x, ...) \
     do { if (x) { \
             fprintf(stderr, __VA_ARGS__); \
+            fprintf(stderr, "\n"); \
             fflush(stderr); \
     }    } while(0)
 #else
@@ -108,6 +109,53 @@ void pdp_hexdump(const char* msg, unsigned int index,
 #endif // _PDP_DEBUG
 
 
+#ifdef _MSC_VER
+
+#include <stdlib.h>
+#define bswap_32(x) _byteswap_ulong(x)
+#define bswap_64(x) _byteswap_uint64(x)
+
+#elif defined(__APPLE__)
+
+// Mac OS X / Darwin features
+#include <libkern/OSByteOrder.h>
+#define bswap_32(x) OSSwapInt32(x)
+#define bswap_64(x) OSSwapInt64(x)
+
+#elif defined(__sun) || defined(sun)
+
+#include <sys/byteorder.h>
+#define bswap_32(x) BSWAP_32(x)
+#define bswap_64(x) BSWAP_64(x)
+
+#elif defined(__FreeBSD__)
+
+#include <sys/endian.h>
+#define bswap_32(x) bswap32(x)
+#define bswap_64(x) bswap64(x)
+
+#elif defined(__OpenBSD__)
+
+#include <sys/types.h>
+#define bswap_32(x) swap32(x)
+#define bswap_64(x) swap64(x)
+
+#elif defined(__NetBSD__)
+
+#include <sys/types.h>
+#include <machine/bswap.h>
+#if defined(__BSWAP_RENAME) && !defined(__bswap_32)
+#define bswap_32(x) bswap32(x)
+#define bswap_64(x) bswap64(x)
+#endif
+
+#else
+
+#include <byteswap.h>
+
+#endif
+
+
 /*
  * function prototypes - in pdp_misc.c
  */
@@ -127,6 +175,11 @@ unsigned char *gen_prf_f(const unsigned char *key, size_t key_size,
 BIGNUM *gen_prf_k(unsigned char *key, size_t key_len, unsigned int index);
 unsigned int *gen_prp_pi(const unsigned char *key, unsigned int key_len, 
         unsigned int total, unsigned int c);
+int is_bigendian();
+__uint32_t uint32_to_little_endian(__uint32_t value);
+__uint64_t uint64_to_little_endian(__uint64_t value);
+__uint32_t uint32_in_expected_order(const unsigned char* value);
+__uint64_t uint64_in_expected_order(const unsigned char* value);
 
 /*
  * function prototypes - in pdp_key.c
