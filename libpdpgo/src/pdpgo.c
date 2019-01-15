@@ -441,25 +441,37 @@ void go_pdp_data_free(go_pdp_data_t* pdp_data) {
     sfree(pdp_data, sizeof(go_pdp_data_t));
 }
 
-void go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size) {
+int go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+        return -1;
+    }
+
     sfree(pdp_data->file_hash, pdp_data->file_hash_size);
     pdp_data->file_hash = file_hash;
     pdp_data->file_hash_size = file_hash_size;
+
+    return 0;
 }
 
-void go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail) {
-    if (pdp_data) {
-        pdp_data->fail = fail;
+int go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+        return -1;
     }
+
+    pdp_data->fail = fail;
+
+    return 0;
 }
 
-void go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size) {
+int go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size) {
     if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
         return -1;
     }
 
     pdp_data->ctx.apdp_param->block_size = adjust_block_size(block_size);
     pdp_data->ctx.file_st_size = file_size;
+
+    return 0;
 }
 
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data) {

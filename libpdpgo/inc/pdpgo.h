@@ -76,9 +76,9 @@ void go_pdp_data_free(go_pdp_data_t* pdp_data);
 void go_pdp_proof_free(go_pdp_data_t* pdp_data);
 
 // Set attributes.
-void go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size);
-void go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail);
-void go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size);
+int go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size);
+int go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail);
+int go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size);
 
 // Proof Of Data Possession.
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data);
