@@ -87,6 +87,7 @@ int apdp_serialize_tags(const pdp_ctx_t *ctx, const pdp_apdp_tagdata_t* t,
 
     for(i = 0; i < t->tags_num; i++) {
         tag = t->tags[i];
+        if (!tag) goto cleanup;
         memset(tim, 0, tim_size);
         memset(prf, 0, prf_size);
 
