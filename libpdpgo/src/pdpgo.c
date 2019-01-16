@@ -573,6 +573,8 @@ int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data) {
         return -1;
     }
 
+    p = pdp_data->ctx.apdp_param;
+
     if (pdp_data->ctx.algo != PDP_APDP) {
         DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
         return -1;
@@ -588,24 +590,32 @@ int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data) {
         return -1;
     }
 
-    p = pdp_data->ctx.apdp_param;
-
     OpenSSL_add_all_digests();
 
     p->num_blocks = get_num_blocks(pdp_data->ctx.file_st_size, p->block_size);
 
     // allocate space for tags
-    t = pdp_data->tags.apdp;
+    if ((t = malloc(sizeof(pdp_apdp_tagdata_t))) == NULL) {
+        DEBUG(1, "%s: couldn't allocate tag structure", __FUNCTION__);
+        return -1;
+    }
+    memset(t, 0, sizeof(pdp_apdp_tagdata_t));
     t->tags_size = p->num_blocks * sizeof(pdp_apdp_tag_t *);
     t->tags_num = p->num_blocks;
-    if ((t->tags = malloc(t->tags_size)) == NULL)
+    if ((t->tags = malloc(t->tags_size)) == NULL) {
+        DEBUG(1, "%s: couldn't allocate space for tags", __FUNCTION__);
         goto cleanup;
+    }
     memset(t->tags, 0, t->tags_size);
 
+    pdp_data->tags.apdp = t;
     status = 0;
 
 cleanup:
-    if (status) sfree(t->tags, t->tags_size);
+    if (status) {
+        sfree(t->tags, t->tags_size);
+        sfree(t, sizeof(pdp_apdp_tagdata_t));
+    }
     return status;
 }
 
