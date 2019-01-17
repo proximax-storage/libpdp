@@ -36,7 +36,7 @@ unsigned int apdp_serialized_tag_size(const pdp_ctx_t *ctx)
     if (!is_apdp(ctx)) return -1;
     p = ctx->apdp_param;
 
-    return (sizeof(__uint32_t) + (p->rsa_key_size + 7)/8 + sizeof(unsigned int) +
+    return (2 * sizeof(__uint32_t) + (p->rsa_key_size + 7)/8 + sizeof(unsigned int) +
             sizeof(__uint32_t) + p->prf_w_size);
 }
 
@@ -100,6 +100,9 @@ int apdp_serialize_tags(const pdp_ctx_t *ctx, const pdp_apdp_tagdata_t* t,
 
         // write Tim size
         WRITE_UINT32(buf_ptr, tim_size)
+
+        // write actual Tim size
+        WRITE_UINT32(buf_ptr, tim_len)
         
         // write Tim
         if (!BN_bn2bin(tag->Tim, tim)) goto cleanup;
@@ -161,7 +164,7 @@ int apdp_deserialize_tag(const pdp_ctx_t *ctx, pdp_apdp_tag_t* tag,
     unsigned char *buf_ptr = buf;
     unsigned char *tim = NULL;
     size_t tag_size, prf_size;
-    size_t tim_size = 0;
+    size_t tim_size, tim_len = 0;
     int status = -1;
     
     if (!is_apdp(ctx) || !tag || !buf || !buf_len)
@@ -179,20 +182,24 @@ int apdp_deserialize_tag(const pdp_ctx_t *ctx, pdp_apdp_tag_t* tag,
     tim_size = uint32_in_expected_order(buf_ptr);
     buf_ptr += sizeof(__uint32_t);
 
+    // read actual Tim size
+    tim_len = uint32_in_expected_order(buf_ptr);
+    buf_ptr += sizeof(__uint32_t);
+
     // read Tim
-    if ((tim = malloc(tim_size)) == NULL) goto cleanup;
-    memset(tim, 0, tim_size);
-    memcpy(tim, buf_ptr, tim_size);
+    if ((tim = malloc(tim_len)) == NULL) goto cleanup;
+    memset(tim, 0, tim_len);
+    memcpy(tim, buf_ptr, tim_len);
     buf_ptr += tim_size; // skip bytes of serialized Tim size
-    if (!BN_bin2bn(tim, tim_size, tag->Tim)) goto cleanup;
+    if (!BN_bin2bn(tim, tim_len, tag->Tim)) goto cleanup;
 
     // read index
     tag->index = uint32_in_expected_order(buf_ptr);
-    buf_ptr += sizeof(tag->index);
+    buf_ptr += sizeof(__uint32_t);
     
     // read index_prf_size
     tag->index_prf_size = uint32_in_expected_order(buf_ptr);
-    buf_ptr += sizeof(tag->index_prf_size);
+    buf_ptr += sizeof(__uint32_t);
 
     // double check size of prf
     if (!tag->index_prf_size || (tag->index_prf_size > prf_size)) goto cleanup;
@@ -205,7 +212,7 @@ int apdp_deserialize_tag(const pdp_ctx_t *ctx, pdp_apdp_tag_t* tag,
     status = 0;
 
 cleanup:
-    sfree(tim, tim_size);
+    sfree(tim, tim_len);
     return status;
 }
 

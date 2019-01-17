@@ -508,6 +508,7 @@ static int apdp_pub_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
         if (ferror(pub_key)) goto cleanup;
     } else {
         gen_len = uint32_in_expected_order(buffer_ptr);
+        buffer_ptr += sizeof(__uint32_t);
     }
     if ((gen = malloc(gen_len)) == NULL) goto cleanup;
     if (pub_keypath) {
@@ -691,7 +692,7 @@ static int apdp_pri_key_open(const pdp_ctx_t *ctx, pdp_key_t *k,
         fread(gen, gen_len, 1, pub_key);
         if (ferror(pub_key)) goto cleanup;
     } else {
-        memcpy(gen, pri_key_buffer_ptr, gen_len);
+        memcpy(gen, pub_key_buffer_ptr, gen_len);
     }
 
     // Read g from its buffer into 'key'
@@ -717,7 +718,7 @@ cleanup:
     if (status) {
         PDP_ERR("Couldn't deserialize keys.");
         apdp_key_free(ctx, k);
-    }    
+    }
     return status;
 }
 

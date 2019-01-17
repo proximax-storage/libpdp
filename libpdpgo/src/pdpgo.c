@@ -126,9 +126,8 @@ int go_pdp_data_proof_create(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_serialize_keys(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (pdp_data->ctx.algo != PDP_APDP) {
         DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
@@ -154,9 +153,8 @@ int go_pdp_serialize_keys(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_deserialize_keys(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (pdp_data->ctx.algo != PDP_APDP) {
         DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
@@ -178,9 +176,8 @@ int go_pdp_deserialize_keys(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_deserialize_public_key(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (pdp_data->ctx.algo != PDP_APDP) {
         DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
@@ -196,9 +193,8 @@ int go_pdp_deserialize_public_key(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_serialize_tags(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (!pdp_data->tags.apdp) {
         DEBUG(1, "%s: no tags", __FUNCTION__);
@@ -220,9 +216,8 @@ int go_pdp_serialize_tags(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_serialize_verifier_challenge(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (!pdp_data->verifier_challenge.apdp) {
         DEBUG(1, "%s: no verifier challenge", __FUNCTION__);
@@ -245,9 +240,8 @@ int go_pdp_serialize_verifier_challenge(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_deserialize_verifier_challenge(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (go_pdp_data_challenge_create(pdp_data, &pdp_data->verifier_challenge)) {
         DEBUG(1, "%s: couldn't create verifier challenge", __FUNCTION__);
@@ -273,9 +267,8 @@ int go_pdp_deserialize_verifier_challenge(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_serialize_prover_challenge(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (!pdp_data->prover_challenge.apdp) {
         DEBUG(1, "%s: no prover challenge", __FUNCTION__);
@@ -298,9 +291,8 @@ int go_pdp_serialize_prover_challenge(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_deserialize_prover_challenge(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (go_pdp_data_challenge_create(pdp_data, &pdp_data->prover_challenge)) {
         DEBUG(1, "%s: couldn't create prover challenge", __FUNCTION__);
@@ -326,9 +318,8 @@ int go_pdp_deserialize_prover_challenge(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_serialize_proof(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (!pdp_data->proof.apdp) {
         DEBUG(1, "%s: no proof", __FUNCTION__);
@@ -350,9 +341,8 @@ int go_pdp_serialize_proof(go_pdp_data_t* pdp_data) {
 }
 
 int go_pdp_deserialize_proof(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (go_pdp_data_proof_create(pdp_data)) {
         DEBUG(1, "%s: couldn't create proof", __FUNCTION__);
@@ -411,9 +401,9 @@ cleanup:
 }
 
 void go_pdp_proof_free(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return;
-    }
+
     pdp_proof_free(&pdp_data->ctx, &pdp_data->proof);
     sfree(pdp_data->serialized_proof, pdp_data->serialized_proof_size);
 }
@@ -433,18 +423,17 @@ void go_pdp_data_fields_free(go_pdp_data_t* pdp_data) {
 }
 
 void go_pdp_data_free(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return;
-    }
+
     go_pdp_data_fields_free(pdp_data);
     pdp_ctx_free(&pdp_data->ctx);
     sfree(pdp_data, sizeof(go_pdp_data_t));
 }
 
 int go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     sfree(pdp_data->file_hash, pdp_data->file_hash_size);
     pdp_data->file_hash = file_hash;
@@ -454,9 +443,8 @@ int go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsi
 }
 
 int go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     pdp_data->fail = fail;
 
@@ -464,20 +452,30 @@ int go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail) {
 }
 
 int go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
+        return -1;
+
+    if (pdp_data->ctx.algo != PDP_APDP) {
+        DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
         return -1;
     }
 
-    pdp_data->ctx.apdp_param->block_size = adjust_block_size(block_size);
+    if (!pdp_data->ctx.apdp_param) {
+        DEBUG(1, "%s: context is not initialized", __FUNCTION__);
+        return -1;
+    }
+
+    block_size = adjust_block_size(block_size);
+    pdp_data->ctx.apdp_param->block_size = block_size;
     pdp_data->ctx.file_st_size = file_size;
+    pdp_data->ctx.apdp_param->num_blocks = get_num_blocks(file_size, block_size);
 
     return 0;
 }
 
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     // Generate keys.
     if (pdp_key_gen(&pdp_data->ctx, &pdp_data->private_key, &pdp_data->public_key)) {
@@ -495,9 +493,8 @@ cleanup:
 }
 
 int go_pdp_generate_tags(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (pdp_tags_gen(&pdp_data->ctx, &pdp_data->private_key, &pdp_data->tags)) {
         DEBUG(1, "%s: couldn't generate tags", __FUNCTION__);
@@ -513,9 +510,8 @@ cleanup:
 }
 
 int go_pdp_generate_challenge(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     // Generate verifier's challenge.
     if (pdp_challenge_gen(&pdp_data->ctx, &pdp_data->private_key, &pdp_data->verifier_challenge)) {
@@ -538,9 +534,8 @@ cleanup:
 }
 
 int go_pdp_generate_proof(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (pdp_proof_gen(&pdp_data->ctx, &pdp_data->public_key, &pdp_data->prover_challenge, &pdp_data->proof)) {
         DEBUG(1, "%s: couldn't generate proof", __FUNCTION__);
@@ -556,9 +551,8 @@ cleanup:
 }
 
 int go_pdp_verify_proof(go_pdp_data_t* pdp_data) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     return pdp_proof_verify(&pdp_data->ctx, &pdp_data->private_key, &pdp_data->verifier_challenge,
             &pdp_data->proof);
@@ -569,9 +563,8 @@ int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data) {
     pdp_apdp_tagdata_t *t = NULL;
     int status = -1;
 
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     p = pdp_data->ctx.apdp_param;
 
@@ -620,9 +613,8 @@ cleanup:
 }
 
 int go_pdp_generate_tag(go_pdp_data_t* pdp_data, unsigned char *block, size_t block_len, int index) {
-    if (go_pdp_check_struct(pdp_data, __FUNCTION__)) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
-    }
 
     if (pdp_data->ctx.algo != PDP_APDP) {
         DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
