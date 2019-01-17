@@ -1,0 +1,11 @@
+pipeline {
+  agent any
+  stages {
+    stage('Make') {
+      steps {
+	echo 'Make libpdpgo'
+        sh 'make libpdpgo'
+      }
+    }
+  }
+}
