@@ -473,6 +473,23 @@ int go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, uns
     return 0;
 }
 
+int go_pdp_get_block_size(go_pdp_data_t* pdp_data) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
+        return -1;
+
+    if (pdp_data->ctx.algo != PDP_APDP) {
+        DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
+        return -1;
+    }
+
+    if (!pdp_data->ctx.apdp_param) {
+        DEBUG(1, "%s: context is not initialized", __FUNCTION__);
+        return -1;
+    }
+
+    return pdp_data->ctx.apdp_param->block_size;
+}
+
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data) {
     if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
@@ -578,8 +595,8 @@ int go_pdp_generate_tags_init(go_pdp_data_t* pdp_data) {
         return -1;
     }
 
-    if (!pdp_data->ctx.file_st_size || !p->block_size) {
-        DEBUG(1, "%s: file or block size is zero", __FUNCTION__);
+    if (!pdp_data->ctx.file_st_size) {
+        DEBUG(1, "%s: file size is zero", __FUNCTION__);
         return -1;
     }
 
@@ -613,20 +630,26 @@ cleanup:
 }
 
 int go_pdp_generate_tag(go_pdp_data_t* pdp_data, unsigned char *block, size_t block_len, int index) {
+    int status = -1;
+
     if (go_pdp_check_struct(pdp_data, __FUNCTION__))
-        return -1;
+        goto cleanup;
 
     if (pdp_data->ctx.algo != PDP_APDP) {
         DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
-        return -1;
+        goto cleanup;
     }
 
     if (!pdp_data->private_key.apdp || !block || !block_len ||
         !pdp_data->tags.apdp || index >= pdp_data->tags.apdp->tags_num)
-        return -1;
+        goto cleanup;
 
-    return apdp_tag_block(&pdp_data->ctx, pdp_data->private_key.apdp, block, block_len, index,
+    status = apdp_tag_block(&pdp_data->ctx, pdp_data->private_key.apdp, block, block_len, index,
         &pdp_data->tags.apdp->tags[index]);
+
+cleanup:
+    sfree(block, block_len);
+    return status;
 }
 
 int go_pdp_generate_tags_finalize() {

@@ -75,10 +75,11 @@ go_pdp_data_t* create_apdp_data(unsigned short verbose, get_block_callback get_b
 void go_pdp_data_free(go_pdp_data_t* pdp_data);
 void go_pdp_proof_free(go_pdp_data_t* pdp_data);
 
-// Set attributes.
+// Get/Set attributes.
 int go_pdp_set_file_hash(go_pdp_data_t* pdp_data, unsigned char* file_hash, unsigned int file_hash_size);
 int go_pdp_set_fail(go_pdp_data_t* pdp_data, char fail);
 int go_pdp_set_file_and_block_size(go_pdp_data_t* pdp_data, off_t file_size, unsigned int block_size);
+int go_pdp_get_block_size(go_pdp_data_t* pdp_data);
 
 // Proof Of Data Possession.
 int go_pdp_generate_keys(go_pdp_data_t* pdp_data);

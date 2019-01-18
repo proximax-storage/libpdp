@@ -40,7 +40,7 @@ struct pdp_job_arg {
 };
 
 unsigned int get_num_blocks(off_t file_st_size, unsigned int block_size) {
-    if (!block_size) return 1;
+    block_size = adjust_block_size(block_size);
 
     unsigned int num_blocks = (file_st_size / block_size);
     if (file_st_size % block_size) num_blocks++;
