@@ -196,12 +196,13 @@ int go_pdp_serialize_tags(go_pdp_data_t* pdp_data) {
     if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
 
+    if (pdp_data->serialized_tags)
+        return 0;
+
     if (!pdp_data->tags.apdp) {
         DEBUG(1, "%s: no tags", __FUNCTION__);
         return -1;
     }
-
-    sfree(pdp_data->serialized_tags, pdp_data->serialized_tags_size);
 
     switch(pdp_data->ctx.algo) {
         case PDP_APDP:
