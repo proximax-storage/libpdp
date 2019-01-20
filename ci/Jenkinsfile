@@ -8,4 +8,16 @@ pipeline {
       }
     }
   }
+ post {
+    success {
+        slackSend channel: '#devops_storage',
+            color: 'good',
+            message: "Branch *${env.GIT_BRANCH}* build of *${currentBuild.fullDisplayName}* completed successfully :100:"
+    }
+    failure {
+        slackSend channel: '#devops_storage',
+            color: 'bad',
+            message: "Branch *${env.GIT_BRANCH}* of *${currentBuild.fullDisplayName}* FAILED :scream:"
+    }
+  }
 }
