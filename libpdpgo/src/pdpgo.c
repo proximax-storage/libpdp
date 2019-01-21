@@ -557,15 +557,11 @@ int go_pdp_generate_proof(go_pdp_data_t* pdp_data) {
 
     if (pdp_proof_gen(&pdp_data->ctx, &pdp_data->public_key, &pdp_data->prover_challenge, &pdp_data->proof)) {
         DEBUG(1, "%s: couldn't generate proof", __FUNCTION__);
-        goto cleanup;
+        pdp_data->proof.apdp = NULL;
+        return -1;
     }
 
     return 0;
-
-cleanup:
-    pdp_proof_free(&pdp_data->ctx, &pdp_data->proof);
-
-    return -1;
 }
 
 int go_pdp_verify_proof(go_pdp_data_t* pdp_data) {

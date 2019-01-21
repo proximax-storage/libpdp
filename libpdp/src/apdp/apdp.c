@@ -864,7 +864,7 @@ int apdp_proof_gen(const pdp_ctx_t *ctx, const pdp_apdp_key_t *key,
         if (err) goto cleanup;
 
         err = apdp_proof_update(ctx, key, proof, chal, tag, 
-                                block, p->block_size, i);
+                                block, block_len, i);
         if (err) goto cleanup;
     }
     // 'finalize' the proof
