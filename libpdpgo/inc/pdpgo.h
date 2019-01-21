@@ -94,6 +94,7 @@ int go_pdp_verify_proof(go_pdp_data_t* pdp_data);
 //Struct serialization/deserialization.
 int go_pdp_serialize_keys(go_pdp_data_t* pdp_data);
 int go_pdp_deserialize_keys(go_pdp_data_t* pdp_data);
+int go_pdp_serialize_public_key(go_pdp_data_t* pdp_data);
 int go_pdp_deserialize_public_key(go_pdp_data_t* pdp_data);
 int go_pdp_serialize_tags(go_pdp_data_t* pdp_data);
 int go_pdp_serialize_verifier_challenge(go_pdp_data_t* pdp_data);

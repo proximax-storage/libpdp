@@ -62,6 +62,8 @@ int apdp_ctx_init(pdp_ctx_t *ctx);
 int apdp_ctx_create(pdp_ctx_t *ctx);
 int apdp_ctx_free(pdp_ctx_t *ctx);
 int apdp_key_gen(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub);
+int apdp_pub_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k,
+        unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length);
 int apdp_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k, const char *path,
         unsigned char** pri_key_buffer, unsigned int* pri_key_buffer_length,
         unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length);

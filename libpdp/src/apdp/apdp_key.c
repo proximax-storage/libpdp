@@ -241,6 +241,70 @@ int apdp_key_gen(const pdp_ctx_t *ctx, pdp_key_t *k, pdp_key_t *pub)
 
 
 /**
+ * @brief Store public key data to buffer.
+ *
+ * @todo serialize the data in ASN.1
+ *
+ * @param[in]   ctx   ptr to context
+ * @param[in]   k     keydata
+ * @return 0 on success, non-zero on error
+ **/
+int apdp_pub_key_store(const pdp_ctx_t *ctx, const pdp_key_t *k,
+                   unsigned char** pub_key_buffer, unsigned int* pub_key_buffer_length)
+{
+    int status = -1;
+    size_t gen_len;
+    unsigned char *gen = NULL;   // buffer to hold serialized g
+    pdp_apdp_key_t *key = NULL;
+    BIO *pub_key_bio = NULL;
+    __uint32_t value;
+
+    if (!is_apdp(ctx) || !k || !pub_key_buffer || !pub_key_buffer_length)
+        return -1;
+    key = k->apdp;
+
+    *pub_key_buffer = NULL;
+
+    // Get the length of g
+    gen_len = BN_num_bytes(key->g);
+    if ((gen = malloc(gen_len)) == NULL) goto cleanup;
+    memset(gen, 0, gen_len);
+    // Convert g to binary
+    if (!BN_bn2bin(key->g, gen)) goto cleanup;
+
+    pub_key_bio = BIO_new(BIO_s_mem());
+    if (!PEM_write_bio_RSAPublicKey(pub_key_bio, key->rsa)) goto cleanup;
+
+    char* tmp;
+    __uint32_t bio_data_size = BIO_get_mem_data(pub_key_bio, &tmp);
+    *pub_key_buffer_length = bio_data_size + 2 * sizeof(__uint32_t) + gen_len;
+    if ((*pub_key_buffer = malloc(*pub_key_buffer_length)) == NULL) goto cleanup;
+
+    unsigned char* pub_key_buffer_ptr = *pub_key_buffer;
+
+    WRITE_UINT32(pub_key_buffer_ptr, bio_data_size);
+
+    if (BIO_read(pub_key_bio, pub_key_buffer_ptr, bio_data_size) <= 0) goto cleanup;
+    pub_key_buffer_ptr += bio_data_size;
+
+    WRITE_UINT32(pub_key_buffer_ptr, gen_len);
+
+    memcpy(pub_key_buffer_ptr, gen, gen_len);
+
+    status = 0;
+
+cleanup:
+    sfree(gen, gen_len);
+    if (pub_key_bio) BIO_free(pub_key_bio);
+    if (status) {
+        if (pub_key_buffer && *pub_key_buffer)
+            sfree(*pub_key_buffer, *pub_key_buffer_length);
+    }
+    return status;
+}
+
+
+/**
  * @brief Store key data to files.
  *
  * Serializes and stores key data, protecting private key data

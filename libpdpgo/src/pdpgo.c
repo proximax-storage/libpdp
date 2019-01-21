@@ -175,6 +175,28 @@ int go_pdp_deserialize_keys(go_pdp_data_t* pdp_data) {
             pdp_data->serialized_private_key, pdp_data->serialized_public_key);
 }
 
+int go_pdp_serialize_public_key(go_pdp_data_t* pdp_data) {
+    if (go_pdp_check_struct(pdp_data, __FUNCTION__))
+        return -1;
+
+    if (pdp_data->ctx.algo != PDP_APDP) {
+        DEBUG(1, "%s: algorithm is not supported (%u)", __FUNCTION__, pdp_data->ctx.algo);
+        return -1;
+    }
+
+    if (!pdp_data->public_key.apdp) {
+        DEBUG(1, "%s: no keys", __FUNCTION__);
+        return -1;
+    }
+
+    sfree(pdp_data->serialized_public_key, pdp_data->serialized_public_key_size);
+    pdp_data->serialized_public_key = NULL;
+    pdp_data->serialized_public_key_size = 0;
+
+    return apdp_pub_key_store(&pdp_data->ctx, &pdp_data->public_key,
+            &pdp_data->serialized_public_key, &pdp_data->serialized_public_key_size);
+}
+
 int go_pdp_deserialize_public_key(go_pdp_data_t* pdp_data) {
     if (go_pdp_check_struct(pdp_data, __FUNCTION__))
         return -1;
