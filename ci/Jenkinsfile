@@ -1,5 +1,7 @@
 pipeline {
-  agent any
+  agent {
+    label '482-build-agent'
+  }
   stages {
     stage('Make') {
       steps {
@@ -8,7 +10,7 @@ pipeline {
       }
     }
   }
- post {
+  post {
     success {
         slackSend channel: '#devops_storage',
             color: 'good',
