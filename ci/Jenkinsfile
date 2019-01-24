@@ -9,6 +9,12 @@ pipeline {
         sh 'make libpdpgo'
       }
     }
+    stage('Copy builded lib') {
+      steps {
+        echo 'Copy builded lib'
+        sh 'cp libpdpgo/build/release/lib/libpdpgo.a /home/ubuntu/go_path/src/github.com/proximax-storage/go-xpx-pdp/vendor/libpdpgo/lib/libpdpgo.a'
+      }
+    }
   }
   post {
     success {
