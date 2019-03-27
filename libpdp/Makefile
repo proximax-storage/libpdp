@@ -7,7 +7,7 @@ LD = gcc
 AR = ar
 #-----------------------------------------------------------------------------
 INCLUDES  = -Iinc -Isrc
-INCLUDES += -Isrc/apdp -Isrc/mrpdp -Isrc/cpor -Isrc/macpdp -Isrc/sepdp
+INCLUDES += -Iinc/apdp -Iinc/mrpdp -Iinc/cpor -Iinc/macpdp -Iinc/sepdp
 INCLUDES += -I../libs3/inc
 
 CFLAGS  = -Wall -g $(INCLUDES)
@@ -36,4 +36,3 @@ distclean: clean
 
 libpdp.a: $(OBJS)
 	$(AR) rvs $@ $^
-

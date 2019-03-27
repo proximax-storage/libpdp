@@ -19,7 +19,8 @@ endif
 
 LIBPDP = ../libpdp
 LIBPDP_SRC = $(LIBPDP)/src
-INCLUDES  = -Iinc -Isrc -I$(LIBPDP)/inc -I$(LIBPDP_SRC)
+INCLUDES  = -Iinc -I$(LIBPDP)/inc
+INCLUDES += -I$(LIBPDP)/inc/apdp -I$(LIBPDP)/inc/mrpdp -I$(LIBPDP)/inc/cpor -I$(LIBPDP)/inc/macpdp -I$(LIBPDP)/inc/sepdp
 
 CFLAGS = -Wall -g $(INCLUDES)
 CFLAGS += -D_FILE_OFFSET_BITS=64
@@ -42,7 +43,7 @@ OBJS += cpor.o cpor_key.o cpor_file.o cpor_s3.o cpor_serialize.o
 OBJS += sepdp.o sepdp_key.o sepdp_file.o sepdp_s3.o sepdp_serialize.o
 OBJS += pdpgo.o
 
-all: mkdirs $(LIBPDPGO)
+all: mkdirs headers $(LIBPDPGO)
 
 mkdirs:
 	@ mkdir -p $(BUILD)/lib
@@ -77,3 +78,8 @@ $(BUILD)/obj/%.o: $(LIBPDP_SRC)/sepdp/%.c
 
 $(LIBPDPGO): $(OBJS:%.o=$(BUILD)/obj/%.o)
 	$(AR) rs $@ $^
+
+headers:
+	mkdir -p $(BUILD)/inc
+	cp -r $(LIBPDP)/inc/* $(BUILD)/inc/
+	cp -r inc/* $(BUILD)/inc/
