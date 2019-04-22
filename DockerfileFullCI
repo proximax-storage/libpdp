@@ -1,0 +1,26 @@
+FROM ubuntu:16.04
+
+# Install init deps
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    apt-get update && \
+    apt-get install -y git && \
+    apt install build-essential libxml2-dev libcurl4-openssl-dev libssl-dev -y
+
+# Force update of cache and add private key to container
+COPY . /temp/temp
+COPY id_rsa ./
+
+# Add credentials on build
+RUN mkdir /root/.ssh/ \
+    && mv id_rsa /root/.ssh/ \
+    && chmod 0600 /root/.ssh/id_rsa && eval $(ssh-agent -s) \
+    && touch /root/.ssh/known_hosts && ssh-keyscan github.com > /root/.ssh/known_hosts \
+    && git config --global --add url."git@github.com:".insteadOf "https://github.com/"
+
+ENV GOPATH=/go
+
+# Install all sources
+RUN mkdir -p $GOPATH/src/github.com/proximax-storage/ && cd $_ \
+    && git clone git@github.com:proximax-storage/libpdp.git \
+    && cd libpdp && make libpdpgo

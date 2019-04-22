@@ -5,8 +5,10 @@ pipeline {
   stages {
     stage('Make') {
       steps {
-	echo 'Make libpdpgo'
-        sh 'make libpdpgo'
+        withCredentials([sshUserPrivateKey(credentialsId: "keyserverprox", keyFileVariable: 'keyfile')]) {
+            sh 'cp ${keyfile} ./id_rsa'
+            sh 'docker build -t libpdp -f DockerfileFullCI .'
+        }
       }
     }
   }
