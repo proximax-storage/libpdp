@@ -1,6 +1,6 @@
 pipeline {
   agent {
-    label '482-build-agent'
+    label 'dfms-build-agent-t3medium'
   }
   stages {
     stage('Make') {
